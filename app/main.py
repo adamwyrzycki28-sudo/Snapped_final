@@ -128,6 +128,11 @@ async def add_process_time_header(request: Request, call_next):
 os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
 app.mount("/static", StaticFiles(directory=settings.STATIC_FOLDER), name="static")
 
+# Mount admin panel
+admin_panel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "admin_panel")
+if os.path.exists(admin_panel_path):
+    app.mount("/admin", StaticFiles(directory=admin_panel_path, html=True), name="admin")
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
