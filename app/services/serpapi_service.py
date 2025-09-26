@@ -287,6 +287,165 @@ async def process_google_lens_response(data: Dict[str, Any]) -> List[Dict[str, A
     max_results = getattr(settings, "MAX_SIMILAR_PRODUCTS", 32)
     return unique_products[:max_results]
 
+async def search_products_by_text(query: str) -> List[Dict[str, Any]]:
+    """
+    Search for products using text query via SerpAPI Google Shopping.
+    
+    Args:
+        query: Text query to search for
+        
+    Returns:
+        List of products with title, link, image_url, price, brand, rating, reviews_count, source
+    """
+    api_url = "https://serpapi.com/search.json"
+    api_key = getattr(settings, "SERPAPI_API_KEY", None)
+    if not api_key:
+        logger.error("SERPAPI_API_KEY is missing from settings")
+        return []
+    
+    # Clean the query - remove website names after " | "
+    cleaned_query = clean_search_query(query)
+    
+    params = {
+        "engine": "google_shopping",
+        "q": cleaned_query,
+        "api_key": api_key,
+        "hl": "en",
+        "gl": "us",
+        "num": settings.MAX_SIMILAR_PRODUCTS or 30
+    }
+    
+    # Force a local HTTP/1.1 client to avoid http2-related crashes
+    async with _build_http1_client() as client:
+        for attempt in range(3):
+            try:
+                logger.info(f"Making Google Shopping request for query: {cleaned_query} (attempt {attempt+1}/3)")
+                response = await client.get(api_url, params=params)
+                
+                # Handle rate limiting explicitly
+                if response.status_code == 429:
+                    retry_after = float(response.headers.get("Retry-After", "2"))
+                    logger.warning(f"SerpAPI rate-limited (429). Waiting {retry_after}s before retry.")
+                    if attempt == 2:
+                        logger.error("SerpAPI rate-limited after 3 attempts")
+                        return []
+                    await asyncio.sleep(retry_after)
+                    continue
+                
+                # Raise for 4xx/5xx to enter except block with details
+                response.raise_for_status()
+                
+                data = response.json()
+                products = await process_google_shopping_response(data)
+                
+                if not products:
+                    logger.warning(f"No products found for query: {cleaned_query}")
+                    return []
+                
+                return products
+                
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                if attempt == 2:
+                    logger.error(f"Google Shopping request failed after 3 attempts due to network error: {str(e)}")
+                    raise
+                wait_time = 2 ** attempt  # 1, 2 seconds
+                logger.warning(
+                    f"Network issue contacting SerpAPI (attempt {attempt+1}/3). "
+                    f"Retrying in {wait_time}s: {repr(e)}"
+                )
+                await _sleep_with_jitter(wait_time)
+                
+            except httpx.HTTPStatusError as e:
+                logger.error(f"SerpAPI HTTP error for query '{cleaned_query}': {e.response.status_code} - {e.response.text}")
+                if attempt == 2:
+                    raise
+                await _sleep_with_jitter(2 ** attempt)
+                
+            except Exception as e:
+                logger.error(f"Unexpected error during text search: {str(e)}")
+                if attempt == 2:
+                    raise
+                await _sleep_with_jitter(2 ** attempt)
+    
+    return []
+
+def clean_search_query(query: str) -> str:
+    """
+    Clean search query by removing website names that come after " | "
+    
+    Args:
+        query: Original search query
+        
+    Returns:
+        Cleaned query
+    """
+    if not query:
+        return ""
+    
+    # Remove website name after " | "
+    if " | " in query:
+        query = query.split(" | ")[0].strip()
+    
+    # Remove common website indicators
+    website_patterns = [
+        r'\s*-\s*[A-Za-z]+\.com.*$',  # - Amazon.com, etc.
+        r'\s*\|\s*[A-Za-z]+.*$',      # | Amazon, etc.
+        r'\s*@\s*[A-Za-z]+.*$',       # @ Amazon, etc.
+        r'\s*on\s+[A-Za-z]+\.com.*$', # on Amazon.com, etc.
+    ]
+    
+    for pattern in website_patterns:
+        query = re.sub(pattern, '', query, flags=re.IGNORECASE)
+    
+    return query.strip()
+
+async def process_google_shopping_response(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Process Google Shopping API response and extract product information.
+    
+    Args:
+        data: Raw response from SerpAPI Google Shopping
+        
+    Returns:
+        List of processed products
+    """
+    products = []
+    
+    # Extract shopping results
+    shopping_results = data.get("shopping_results", [])
+    
+    for item in shopping_results:
+        try:
+            product = {
+                "title": item.get("title", ""),
+                "link": item.get("link", ""),
+                "image_url": item.get("thumbnail", ""),
+                "price": item.get("price", ""),
+                "brand": item.get("source") or extract_brand_from_title(item.get("title", "")),
+                "source": item.get("source", ""),
+                "description": item.get("snippet", ""),
+                "rating": item.get("rating"),
+                "reviews_count": item.get("reviews"),
+            }
+            
+            # Skip products without essential information
+            if not product["title"] or not product["link"]:
+                continue
+            
+            products.append(product)
+            
+        except Exception as e:
+            logger.warning(f"Error processing shopping result: {str(e)}")
+            continue
+    
+    # Deduplicate using thread pool to avoid blocking event loop
+    unique_products = await run_in_threadpool(filter_duplicates, products)
+    logger.info(f"Products after deduplication: {len(unique_products)}")
+    
+    # Enforce max cap
+    max_results = getattr(settings, "MAX_SIMILAR_PRODUCTS", 32)
+    return unique_products[:max_results]
+
 def extract_product_info(product: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize product info for storage/response.

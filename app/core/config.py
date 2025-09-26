@@ -76,5 +76,9 @@ class Settings:
         # Security
         self.SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
         self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+        
+        # Google Vision API settings
+        self.GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+        self.GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
 settings = Settings()

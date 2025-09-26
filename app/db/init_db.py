@@ -5,6 +5,10 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.core.config import settings
 
+# Import models to register them with SQLAlchemy
+from app.models.search import ImageSearch, SearchResult
+from app.models.user import AnonymousUser, ClickEvent, Ticket
+
 logger = logging.getLogger(__name__)
 
 async def init_db():

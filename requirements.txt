@@ -31,3 +31,6 @@ redis==5.0.1
 # Production optimizations
 gunicorn==21.2.0
 psycopg2-binary==2.9.10
+
+# Google Vision API
+google-cloud-vision==3.4.5

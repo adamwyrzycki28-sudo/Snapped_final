@@ -16,7 +16,10 @@ async def create_image_search(
     cloudinary_public_id: Optional[str] = None,
     cloudinary_url: Optional[str] = None,
     original_cloudinary_public_id: Optional[str] = None,
-    original_cloudinary_url: Optional[str] = None
+    original_cloudinary_url: Optional[str] = None,
+    user_id: Optional[str] = None,
+    device_type: Optional[str] = None,
+    country: Optional[str] = None
 ) -> ImageSearch:
     """
     Create a new image search record
@@ -30,6 +33,9 @@ async def create_image_search(
         cloudinary_url: Cloudinary URL of the image
         original_cloudinary_public_id: Cloudinary public ID of the original image
         original_cloudinary_url: Cloudinary URL of the original image
+        user_id: Anonymous user ID
+        device_type: Device type
+        country: Country code
         
     Returns:
         Created ImageSearch object
@@ -41,7 +47,10 @@ async def create_image_search(
         cloudinary_public_id=cloudinary_public_id,
         cloudinary_url=cloudinary_url,
         original_cloudinary_public_id=original_cloudinary_public_id,
-        original_cloudinary_url=original_cloudinary_url
+        original_cloudinary_url=original_cloudinary_url,
+        user_id=user_id,
+        device_type=device_type,
+        country=country
     )
     db.add(db_search)
     db.commit()
