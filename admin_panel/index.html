@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snapped AI - Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-camera-retro"></i>
+                    <span>Snapped AI</span>
+                </div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="menu-item active" data-section="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="menu-item" data-section="searches">
+                    <i class="fas fa-search"></i>
+                    <span>Searches</span>
+                </li>
+                <li class="menu-item" data-section="clicks">
+                    <i class="fas fa-mouse-pointer"></i>
+                    <span>Clicks</span>
+                </li>
+                <li class="menu-item" data-section="partners">
+                    <i class="fas fa-handshake"></i>
+                    <span>Partners</span>
+                </li>
+                <li class="menu-item" data-section="users">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </li>
+                <li class="menu-item" data-section="tickets">
+                    <i class="fas fa-ticket-alt"></i>
+                    <span>Tickets</span>
+                    <span class="badge" id="ticket-badge">0</span>
+                </li>
+                <li class="menu-item" data-section="affiliate-links">
+                    <i class="fas fa-link"></i>
+                    <span>Affiliate Links</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="sidebar-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="page-title">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="date-filter">
+                        <input type="date" id="start-date" class="date-input">
+                        <span>to</span>
+                        <input type="date" id="end-date" class="date-input">
+                        <button id="apply-filter" class="btn btn-primary">Apply</button>
+                    </div>
+                    <div class="admin-profile">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="section active">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="total-searches">0</h3>
+                                <p>Total Searches</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-mouse-pointer"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="total-clicks">0</h3>
+                                <p>Total Clicks</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="total-users">0</h3>
+                                <p>Total Users</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-percentage"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="ctr">0%</h3>
+                                <p>Click-Through Rate</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>7-Day Trend</h3>
+                            <canvas id="seven-day-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>30-Day Trend</h3>
+                            <canvas id="thirty-day-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="tables-grid">
+                        <div class="table-card">
+                            <h3>Top Partners</h3>
+                            <div class="table-container">
+                                <table id="top-partners-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Partner</th>
+                                            <th>Clicks</th>
+                                            <th>CTR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="table-card">
+                            <h3>Top Sources</h3>
+                            <div class="table-container">
+                                <table id="top-sources-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Source</th>
+                                            <th>Searches</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tickets Section -->
+                <section id="tickets-section" class="section">
+                    <div class="section-header">
+                        <h2>Support Tickets</h2>
+                        <div class="search-filters">
+                            <select id="ticket-status-filter" class="filter-select">
+                                <option value="">All Status</option>
+                                <option value="open">Open</option>
+                                <option value="in-progress">In Progress</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                            <input type="text" id="ticket-user-filter" placeholder="Filter by User ID" class="filter-input">
+                        </div>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-container">
+                            <table id="tickets-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>User ID</th>
+                                        <th>Created</th>
+                                        <th>Status</th>
+                                        <th>User Note</th>
+                                        <th>Image</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination">
+                            <button id="tickets-prev" class="btn btn-secondary">Previous</button>
+                            <span id="tickets-page-info">Page 1 of 1</span>
+                            <button id="tickets-next" class="btn btn-secondary">Next</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Ticket Detail Modal -->
+    <div id="ticket-detail-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>Ticket Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="ticket-detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="charts.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
