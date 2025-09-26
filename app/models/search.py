@@ -7,10 +7,15 @@ class ImageSearch(Base):
     __tablename__ = "image_searches"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("anonymous_users.user_id"), nullable=True, index=True)  # Anonymous user ID
     image_path = Column(String, nullable=False)
     original_image_path = Column(String, nullable=True)  # Path to the original image before clipping
     search_time = Column(DateTime, default=datetime.utcnow, index=True)
     is_clipped = Column(Boolean, default=False)  # Whether the image was clipped
+    
+    # Device and location info
+    device_type = Column(String, nullable=True)
+    country = Column(String, nullable=True)
     
     # Cloudinary fields
     cloudinary_public_id = Column(String, nullable=True)  # Cloudinary public ID
@@ -18,12 +23,14 @@ class ImageSearch(Base):
     original_cloudinary_public_id = Column(String, nullable=True)  # Original image Cloudinary public ID
     original_cloudinary_url = Column(String, nullable=True)  # Original image Cloudinary URL
     
-    # Relationship with search results
+    # Relationships
     results = relationship("SearchResult", back_populates="search", cascade="all, delete-orphan")
+    user = relationship("AnonymousUser", back_populates="searches")
     
     # Create indexes for faster queries
     __table_args__ = (
         Index('ix_image_searches_search_time_desc', search_time.desc()),
+        Index('ix_image_searches_user_search_time', user_id, search_time.desc()),
     )
 
 class SearchResult(Base):

@@ -10,13 +10,15 @@ from app.db.base import get_db
 from app.models.schemas import (
     ImageUploadResponse, ImageClipResponse, SimilarProductsResponse, 
     SearchResult, ImageClipRequest, SearchListResponse, ProductFilter,
-    ImageSearch
+    ImageSearch, ObjectDetectionRequest, ObjectDetectionResponse, 
+    DetectedObject, BoundingBox
 )
 from app.utils.image_processing import (
     save_upload_file, clip_image, is_allowed_file, 
     get_image_dimensions, optimize_image
 )
-from app.services.serpapi_service import search_similar_products
+from app.services.serpapi_service import search_similar_products, search_products_by_text
+from app.services.vision_service import vision_service
 from app.services.db_service import (
     create_image_search, create_search_results, get_search_by_id, 
     get_recent_searches, get_search_count, get_filtered_results
@@ -217,6 +219,9 @@ async def search_products(
     cloudinary_url: Optional[str] = Form(None),
     original_cloudinary_public_id: Optional[str] = Form(None),
     original_cloudinary_url: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    device_type: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
@@ -253,7 +258,10 @@ async def search_products(
             cloudinary_public_id,
             cloudinary_url,
             original_cloudinary_public_id,
-            original_cloudinary_url
+            original_cloudinary_url,
+            user_id,
+            device_type,
+            country
         )
         
         # Use Cloudinary URL if available, otherwise use local path
@@ -468,3 +476,141 @@ async def get_dimensions(image_path: str):
     except Exception as e:
         logger.error(f"Error getting image dimensions: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting image dimensions: {str(e)}")
+
+@router.post("/detect-objects", response_model=ObjectDetectionResponse)
+async def detect_objects(
+    image_url: str = Form(...),
+    cloudinary_id: Optional[str] = Form(None),
+    image_width: Optional[int] = Form(None),
+    image_height: Optional[int] = Form(None)
+):
+    """
+    Detect objects in an image using Google Vision API
+    
+    Args:
+        image_url: URL of the image to analyze
+        cloudinary_id: Optional Cloudinary public ID
+        image_width: Width of the image in pixels (optional)
+        image_height: Height of the image in pixels (optional)
+        
+    Returns:
+        ObjectDetectionResponse with detected objects and bounding boxes
+    """
+    try:
+        # If image dimensions are provided, use them for pixel coordinates
+        if image_width and image_height:
+            result = await vision_service.detect_objects_with_dimensions(
+                image_url, image_width, image_height, cloudinary_id
+            )
+        else:
+            result = await vision_service.detect_objects(image_url, cloudinary_id)
+        
+        # Convert to response schema
+        detected_objects = [
+            DetectedObject(
+                name=obj["name"],
+                confidence=obj["confidence"],
+                bounding_box=BoundingBox(**obj["bounding_box"])
+            )
+            for obj in result["objects"]
+        ]
+        
+        return ObjectDetectionResponse(
+            image_url=result["image_url"],
+            cloudinary_id=result.get("cloudinary_id"),
+            objects=detected_objects,
+            total_objects=result["total_objects"]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error detecting objects: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error detecting objects: {str(e)}")
+
+@router.post("/search-by-text", response_model=SimilarProductsResponse)
+async def search_by_text(
+    query: str = Form(...),
+    user_id: Optional[str] = Form(None),
+    device_type: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for products using text query
+    
+    Args:
+        query: Text query to search for (website names after " | " will be removed)
+        user_id: Anonymous user ID
+        device_type: Device type
+        country: Country code
+        background_tasks: FastAPI background tasks
+        db: Database session
+        
+    Returns:
+        SimilarProductsResponse with search results
+    """
+    try:
+        # Create a new search record (using query as image_path for text searches)
+        db_search = await create_image_search(
+            db, 
+            f"text_search:{query}",  # Use a special format to indicate text search
+            None,  # No original image path
+            False,  # Not clipped
+            None,  # No cloudinary ID
+            None,  # No cloudinary URL
+            None,  # No original cloudinary ID
+            None,  # No original cloudinary URL
+            user_id,
+            device_type,
+            country
+        )
+        
+        logger.info(f"Searching for products with text query: {query}")
+        
+        # Search for products using text query
+        similar_products = await search_products_by_text(query)
+        
+        # Log the number of products returned from search
+        logger.info(f"search_products_by_text returned {len(similar_products)} products")
+        
+        # Store search results in the database as a background task
+        background_tasks.add_task(
+            create_search_results, db, db_search.id, similar_products
+        )
+        
+        # Convert results to schema models
+        results = [
+            SearchResult(
+                id=0,  # Temporary ID since we're not waiting for DB
+                search_id=db_search.id,
+                title=product.get("title"),
+                link=product.get("link"),
+                image_url=product.get("image_url"),
+                price=product.get("price"),
+                brand=product.get("brand"),
+                source=product.get("source"),
+                description=product.get("description"),
+                rating=product.get("rating"),
+                reviews_count=product.get("reviews_count")
+            )
+            for product in similar_products
+        ]
+        
+        logger.info(f"Found {len(results)} products for text query")
+        
+        return {
+            "search_id": db_search.id,
+            "search_time": db_search.search_time,
+            "image_path": db_search.image_path,
+            "original_image_path": db_search.original_image_path,
+            "is_clipped": db_search.is_clipped,
+            "cloudinary_public_id": db_search.cloudinary_public_id,
+            "cloudinary_url": db_search.cloudinary_url,
+            "original_cloudinary_public_id": db_search.original_cloudinary_public_id,
+            "original_cloudinary_url": db_search.original_cloudinary_url,
+            "results": results,
+            "total_results": len(results)
+        }
+    except Exception as e:
+        logger.error(f"Error searching by text: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error searching by text: {str(e)}")
